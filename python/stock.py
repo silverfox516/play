@@ -8,6 +8,8 @@ import re
 import csv
 import curses
 from bs4 import BeautifulSoup
+import pandas as pd
+
 
 class DaumStockCat:
     def __init__(self, tickers):
@@ -21,7 +23,7 @@ class DaumStockCat:
         self.time = time.localtime()
 
     def point_fetch(self):
-        results = []
+        results = {}
 
         main_page = urllib.request.urlopen(self.stock_main_site).read().decode()
         main_soup = BeautifulSoup(main_page, 'html.parser')
@@ -29,20 +31,22 @@ class DaumStockCat:
 
         kospi_info = point_info.find('dl', class_='pointInfo kospi')
         kospi_point_sign = '-' if kospi_info.find('dd', class_='cDn') else '+'
-        results.append('%s, KOSPI, %s, %s%s' % (time.ctime(),
-            kospi_info.find('dd', class_='point').string,
-            kospi_point_sign, kospi_info.find('span', class_='num').string))
+
+        results['KOSPI'] = [ time.strftime('%X'),
+                kospi_info.find('dd', class_='point').string,
+                kospi_point_sign + kospi_info.find('span', class_='num').string ]
 
         kosdaq_info = point_info.find('dl', class_='pointInfo kosdaq')
         kosdaq_point_sign = '-' if kosdaq_info.find('dd', class_='cDn') else '+'
-        results.append('%s, KOSDAQ, %s, %s%s' % (time.ctime(),
-            kosdaq_info.find('dd', class_='point').string,
-            kosdaq_point_sign, kosdaq_info.find('span', class_='num').string))
+
+        results['KOSDAQ'] = [ time.strftime('%X'),
+                kosdaq_info.find('dd', class_='point').string,
+                kosdaq_point_sign + kosdaq_info.find('span', class_='num').string ]
 
         return results
 
     def tickers_fetch(self):
-        results = []
+        results = {}
 
         for ticker in self.tickers:
             item_page = urllib.request.urlopen(self.stock_item_site + ticker).read().decode()
@@ -50,10 +54,12 @@ class DaumStockCat:
             soup = BeautifulSoup(item_page, 'html.parser')
             info = soup.find('ul', class_='list_stockrate')
 
+#            item = soup.find('ul', class_='list_stockinfo').find('em', class_='screen_out').string
+            item = ticker
             price = info.find('em', class_='curPrice').string
             rate = info.find('span', class_='rate').string
 
-            results.append('%s, %s, %s, %s' % (time.ctime(), ticker, price, rate))
+            results[item] = [ time.strftime('%X'), price, rate ]
 
         return results
 
@@ -70,33 +76,44 @@ class DaumStockCat:
         return False
 
     def debug(self):
-        for ticker in self.tickers:
-            item_page = urllib.request.urlopen(self.stock_item_site + ticker).read().decode()
-            print(item_page)
-            k = re.search('class="curPrice(.*?)">(.*?)<', item_page)
-            r = re.search('class="rate (.*?)?>(.*?)<', item_page)
+        print('do debug')
 
-if __name__ == "__main__":
+def apply_color(val):
+    color = 'black'
+
     try:
-        default_tickers = [ "068270", "207940" ]
+        if int(val) < 0:
+            color = 'blue'
+        elif int(val) > 0:
+            color = 'red'
+    except:
+        print('Failed to eval %s', val)
+
+    return 'color: %s' % color
+    
+
+if __name__ == '__main__':
+    pd.set_option('display.width', pd.util.terminal.get_terminal_size()[0])
+    try:
+        default_tickers = [ '068270', '207940' ]
+        force_always = True
+        fetch_results = {}
 
         screen = curses.initscr()
 
         sc = DaumStockCat(default_tickers)
 
-        force_always = False
-
         while sc.is_stock_opened() or force_always:
             screen.clear()
 
-            for result in sc.point_fetch():
-                screen.addstr('%s\n' % result)
+            fetch_results.update(sc.point_fetch())
+            fetch_results.update(sc.tickers_fetch())
+            df = pd.DataFrame(data = fetch_results, index = [ 'time', 'price', 'rate' ])
 
-            for result in sc.tickers_fetch():
-                screen.addstr('%s\n' % result)
+            screen.addstr('%s\n' % df.T.to_string(header=False))
 
             screen.refresh()
-            time.sleep(1)
+            time.sleep(2)
     except:
         print('oop')
 
