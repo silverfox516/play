@@ -16,8 +16,8 @@ cell_teamids_table_end = 'I492'
 sheet_leagueids = 'LeagueIDs'
 cell_leagueids_table_end = 'I17'
 
-header_teamids = 'sxm_teamids.h'
-header_leagueids = 'sxm_leagueids.h'
+header_teamids = 'SxmTeamDb.h'
+header_leagueids = 'SxmLeagueDb.h'
 
 
 def makeTeamDbHeader():
@@ -34,10 +34,10 @@ def makeTeamDbHeader():
     hfile.write('#include <sxm_sdk.h>\n')
 
     hfile.write('\n')
-    hfile.write('#define TEAM_IDS_COUNT ' + str(ws[cell_count].value) + '\n')
+    hfile.write('#define DB_TEAM_COUNT ' + str(ws[cell_count].value) + '\n')
 
     hfile.write('\n')
-    hfile.write('const SXMTeam team_db[TEAM_IDS_COUNT] = {\n')
+    hfile.write('const SXMTeam team_db[DB_TEAM_COUNT] = {\n')
 
     for r in ws[cell_table_start:cell_teamids_table_end]:
         id = r[0].value
@@ -78,10 +78,10 @@ def makeLeagueDbHeader():
     hfile.write('#include <sxm_sdk.h>\n')
 
     hfile.write('\n')
-    hfile.write('#define LEAGUE_IDS_COUNT ' + str(ws[cell_count].value) + '\n')
+    hfile.write('#define DB_LEAGUE_COUNT ' + str(ws[cell_count].value) + '\n')
 
     hfile.write('\n')
-    hfile.write('const SXMLeague league_db[LEAGUE_IDS_COUNT] = {\n')
+    hfile.write('const SXMLeague league_db[DB_LEAGUE_COUNT] = {\n')
 
     for r in ws[cell_table_start:cell_leagueids_table_end]:
         id = r[0].value
