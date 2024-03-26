@@ -13,7 +13,6 @@ GMainLoop *mainloop;
 
 #define NAME_BUS        "com.igsong.dbus"
 #define NAME_OBJECT     "/com/igsong/dbus"
-#define NAME_INTERFACE  "com.igsong.dbus.Interface"
 
 const char *server_introspection_xml =
     DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
@@ -36,7 +35,7 @@ const char *server_introspection_xml =
     "  </interface>\n"
     "  <interface name='"NAME_BUS".Conversation'>\n"
     "    <method name='Hello'>\n"
-    "      <arg name='say' type='s' direction='in' />\n"
+    "      <arg name='iam' type='s' direction='in' />\n"
     "      <arg type='s' direction='out' />\n"
     "    </method>\n"
     "  </interface>\n"
@@ -105,12 +104,12 @@ DBusHandlerResult server_message_handler(DBusConnection *connection,
 
     dbus_error_init(&error);
 
-    if (dbus_message_is_method_call(message, DBUS_INTERFACE_INTROSPECTABLE, "Introspect")) {
+    if (dbus_message_is_method_call(message, NAME_BUS".Introspectable", "Introspect")) {
         if (!(reply = dbus_message_new_method_return(message)))
             goto fail;
 
         dbus_message_append_args(reply, DBUS_TYPE_STRING, &server_introspection_xml, DBUS_TYPE_INVALID);
-    } else if (dbus_message_is_method_call(message, DBUS_INTERFACE_PROPERTIES, "Get")) {
+    } else if (dbus_message_is_method_call(message, NAME_BUS".Properties", "Get")) {
         const char *interface, *property;
 
         if (!dbus_message_get_args(message, &error, DBUS_TYPE_STRING, &interface,
@@ -126,13 +125,19 @@ DBusHandlerResult server_message_handler(DBusConnection *connection,
             goto fail;
 
         result = server_get_all_properties_handler(connection, reply);
-    } else if (dbus_message_is_method_call(message, NAME_INTERFACE, "Hello")) {
-        const char *answer = "Bye";
+    } else if (dbus_message_is_method_call(message, NAME_BUS".Conversation", "Hello")) {
+        DBusMessageIter args;
+        char *iam, *pbuf, buf[256];
+        pbuf = buf;
+
+        dbus_message_iter_init(message, &args);
+        dbus_message_iter_get_basic(&args, &iam);
 
         if (!(reply = dbus_message_new_method_return(message)))
             goto fail;
 
-        dbus_message_append_args(reply, DBUS_TYPE_STRING, &answer, DBUS_TYPE_INVALID);
+        sprintf(buf, "Hello, %s", iam);
+        dbus_message_append_args(reply, DBUS_TYPE_STRING, &pbuf, DBUS_TYPE_INVALID);
     } else {
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
@@ -171,21 +176,19 @@ DBusConnection *dbus_eg_server_initialize(const char *sess_bus_addr)
     DBusError error;
     DBusConnection *connection = NULL;
     int result = 0;
-    int private_bus = 0;
 
     dbus_error_init(&error);
 
     if (NULL != sess_bus_addr) {
-	    private_bus = 1;
 	    if ((connection = dbus_connection_open(sess_bus_addr, &error)) == NULL ||
 			    !dbus_bus_register(connection, &error))
 	    if (dbus_error_is_set(&error)) {
 		    fprintf(stderr, LOG_TAG "dbus_connection_open() failed, %s\n", error.message);
 		    dbus_error_free(&error);
-		    private_bus = 0;
+		    connection = NULL;
 	    }
     }
-    if (!private_bus) {
+    if (!connection) {
 	    printf(LOG_TAG "trying to get bus BUS_BUS_SESSION");
 	    connection = dbus_bus_get(DBUS_BUS_SESSION, &error);
 	    if (dbus_error_is_set(&error)) {

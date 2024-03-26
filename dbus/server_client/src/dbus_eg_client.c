@@ -6,24 +6,20 @@
 
 #define NAME_BUS        "com.igsong.dbus"
 #define NAME_OBJECT     "/com/igsong/dbus"
-#define NAME_INTERFACE  "com.igsong.dbus.Interface"
 
 DBusMessage *client_send_message(DBusConnection *connection,
         DBusMessage *message)
 {
-    DBusHandlerResult result = DBUS_HANDLER_RESULT_HANDLED;
     DBusMessage *reply = NULL;
-    DBusPendingCall *pending;
+    DBusPendingCall *pending = NULL;
 
     if (!dbus_connection_send_with_reply(connection, message, &pending, -1)) {
         fprintf(stderr, LOG_TAG "dbus_connection_send_with_reply() failed\n");
-        result = DBUS_HANDLER_RESULT_NEED_MEMORY;
         goto out;
     }
 
     if (NULL == pending) {
         fprintf(stderr, LOG_TAG "pending call is null\n");
-        result = DBUS_HANDLER_RESULT_NEED_MEMORY;
         goto out;
     }
 
@@ -32,7 +28,6 @@ DBusMessage *client_send_message(DBusConnection *connection,
     reply = dbus_pending_call_steal_reply(pending);
     if (NULL == reply) {
         fprintf(stderr, LOG_TAG "dbus_pending_call_steal_reply() returns NULL\n");
-        result = DBUS_HANDLER_RESULT_NEED_MEMORY;
         goto out;
     }
 
@@ -47,17 +42,36 @@ DBusMessage *get_message_hello()
 {
     DBusMessage *message = NULL;
     DBusMessageIter args;
-    const char *method = "say";
+    const char *iam = "igsong";
 
-    message = dbus_message_new_method_call(NAME_BUS, NAME_OBJECT, NAME_INTERFACE, "Hello");
+    message = dbus_message_new_method_call(NAME_BUS, NAME_OBJECT, NAME_BUS".Conversation", "Hello");
     if (NULL == message) {
         fprintf(stderr, LOG_TAG "dbus_message_new_method_call() failed\n");
         goto fail;
     }
 
     dbus_message_iter_init_append(message, &args);
-    if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &method)) {
+    if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &iam)) {
         fprintf(stderr, LOG_TAG "dbus_message_iter_append_basic() failed\n");
+        goto fail;
+    }
+
+    return message;
+fail:
+    if (!message)
+        dbus_message_unref(message);
+    return NULL;
+}
+
+DBusMessage *get_message_introspect()
+{
+    DBusMessage *message = NULL;
+    DBusMessageIter args;
+    const char *method = "GetAll";
+
+    message = dbus_message_new_method_call(NAME_BUS, NAME_OBJECT, NAME_BUS".Introspectable", "Introspect");
+    if (NULL == message) {
+        fprintf(stderr, LOG_TAG "dbus_message_new_method_call() failed\n");
         goto fail;
     }
 
@@ -72,13 +86,12 @@ int main(int argc, char argv[])
 {
     printf(LOG_TAG "hello, this is a client.\n");
     
-    DBusConnection *connection;
-    DBusMessage *message, *reply;
+    DBusConnection *connection = NULL;
+    DBusMessage *message, *reply = NULL;
     DBusMessageIter args;
     DBusHandlerResult result = DBUS_HANDLER_RESULT_HANDLED;
     DBusError error;
     char *answer;
-    int private_bus = 0;
 
     const char *dbus_session_bus_address = getenv("DBUS_SESSION_BUS_ADDRESS");
     printf(LOG_TAG "DBUS_SESSION_BUS_ADDRESS : %s\n", dbus_session_bus_address);
@@ -86,16 +99,15 @@ int main(int argc, char argv[])
     dbus_error_init(&error);
 
     if (NULL != dbus_session_bus_address) {
-	    private_bus = 1;
 	    if ((connection = dbus_connection_open(dbus_session_bus_address, &error)) == NULL ||
 			    !dbus_bus_register(connection, &error))
 	    if (dbus_error_is_set(&error)) {
 		    fprintf(stderr, LOG_TAG "dbus_connection_open() failed, %s\n", error.message);
 		    dbus_error_free(&error);
-		    private_bus = 0;
+		    dbus_connection_unref(connection);
 	    }
     }
-    if (!private_bus) {
+    if (!connection) {
 	    printf(LOG_TAG "trying to get bus BUS_BUS_SESSION");
 	    connection = dbus_bus_get(DBUS_BUS_SESSION, &error);
 	    if (dbus_error_is_set(&error)) {
@@ -112,6 +124,7 @@ int main(int argc, char argv[])
         goto fail;
     }
 
+#if 1
     message = get_message_hello();
     if (NULL == message) {
         fprintf(stderr, LOG_TAG "get_message_hello() failed\n");
@@ -134,6 +147,32 @@ int main(int argc, char argv[])
 	    dbus_message_iter_next(&args);
 	    printf(LOG_TAG "got %s\n", answer);
     }
+#endif
+
+#if 2
+    message = get_message_introspect();
+    if (NULL == message) {
+        fprintf(stderr, LOG_TAG "get_message_hello() failed\n");
+        goto fail;
+    }
+
+    reply = client_send_message(connection, message);
+    if (NULL == reply) {
+        fprintf(stderr, LOG_TAG "client_send_message() failed, %d\n", result);
+        goto fail;
+    }
+
+    if (!dbus_message_iter_init(reply, &args)) {
+        fprintf(stderr, LOG_TAG "dbus_message_iter_init() failed\n");
+        goto fail;
+    }
+
+    while (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_INVALID) {
+	    dbus_message_iter_get_basic(&args, &answer);
+	    dbus_message_iter_next(&args);
+	    printf(LOG_TAG "got %s\n", answer);
+    }
+#endif
 
 fail:
     dbus_error_free(&error);
