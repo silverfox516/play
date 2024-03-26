@@ -1,0 +1,7 @@
+project(linux_examples)
+
+add_executable(simple_thread_exam simple_thread_exam.cpp)
+add_executable(text_builder text_builder.cpp)
+add_executable(condition_before condition_before.c)
+add_executable(condition_after condition_after.c)
+add_executable(producer_consumer_01 producer_consumer_01.c)
