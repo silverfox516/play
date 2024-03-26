@@ -4,13 +4,15 @@
 #include <string.h>
 #include <dbus/dbus.h>
 
+#define LOG_TAG "server : "
+
 #if 0
 #include <dbus/dbus-glib-lowlevel.h>
 GMainLoop *mainloop;
 #endif
 
 #define NAME_BUS        "com.igsong.dbus"
-#define NAME_OBJECT     "com/igsong/dbus"
+#define NAME_OBJECT     "/com/igsong/dbus"
 #define NAME_INTERFACE  "com.igsong.dbus.Interface"
 
 const char *server_introspection_xml =
@@ -32,7 +34,7 @@ const char *server_introspection_xml =
     "      <arg name='properties' type='a{sv}' direction='out' />\n"
     "    </method>\n"
     "  </interface>\n"
-    "  <interface name='"NAME_BUS".Properties'>\n"
+    "  <interface name='"NAME_BUS".Conversation'>\n"
     "    <method name='Hello'>\n"
     "      <arg name='say' type='s' direction='in' />\n"
     "      <arg type='s' direction='out' />\n"
@@ -96,7 +98,7 @@ DBusHandlerResult server_message_handler(DBusConnection *connection,
     DBusMessage *reply = NULL;
     DBusError error;
 
-    printf("got dbus request : %s.%s on %s\n",
+    printf(LOG_TAG "got dbus request : %s.%s on %s\n",
             dbus_message_get_interface(message),
             dbus_message_get_member(message),
             dbus_message_get_path(message));
@@ -164,29 +166,44 @@ void dbus_eg_server_release(DBusConnection *connection)
     }
 }
 
-DBusConnection *dbus_eg_server_initialize(void)
+DBusConnection *dbus_eg_server_initialize(const char *sess_bus_addr)
 {
     DBusError error;
     DBusConnection *connection = NULL;
     int result = 0;
+    int private_bus = 0;
 
     dbus_error_init(&error);
-    connection = dbus_bus_get(DBUS_BUS_SESSION, &error);
-    if (dbus_error_is_set(&error)) {
-        fprintf(stderr, "dbus_error_init() failed, %s\n", error.message);
-        goto fail;
+
+    if (NULL != sess_bus_addr) {
+	    private_bus = 1;
+	    if ((connection = dbus_connection_open(sess_bus_addr, &error)) == NULL ||
+			    !dbus_bus_register(connection, &error))
+	    if (dbus_error_is_set(&error)) {
+		    fprintf(stderr, LOG_TAG "dbus_connection_open() failed, %s\n", error.message);
+		    dbus_error_free(&error);
+		    private_bus = 0;
+	    }
     }
-    printf("connected to %s\n", dbus_connection_get_server_id(connection));
+    if (!private_bus) {
+	    printf(LOG_TAG "trying to get bus BUS_BUS_SESSION");
+	    connection = dbus_bus_get(DBUS_BUS_SESSION, &error);
+	    if (dbus_error_is_set(&error)) {
+		    fprintf(stderr, "dbus_error_init() failed, %s\n", error.message);
+		    goto fail;
+	    }
+    }
+    printf(LOG_TAG "connected to %s\n", dbus_connection_get_server_id(connection));
 
     result = dbus_bus_request_name(connection, NAME_BUS,
             DBUS_NAME_FLAG_REPLACE_EXISTING, &error);
     if (DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER != result) {
-        fprintf(stderr, "dbus_bus_request_name() failed, %s\n", error.message);
+        fprintf(stderr, LOG_TAG "dbus_bus_request_name() failed, %s\n", error.message);
         goto fail;
     }
 
     if (!dbus_connection_register_object_path(connection, NAME_OBJECT, &server_vtable, NULL)) {
-        fprintf(stderr, "dbus_connection_register_object_path() failed, %s\n", error.message);
+        fprintf(stderr, LOG_TAG "dbus_connection_register_object_path() failed, %s\n", error.message);
         goto fail;
     }
 
@@ -200,9 +217,12 @@ fail:
 
 int main(int argc, char argv[])
 {
-    printf("hello, this is a server.\n");
+    printf(LOG_TAG "hello, this is a server.\n");
 
-    DBusConnection *connection = dbus_eg_server_initialize();
+    const char *dbus_session_bus_address = getenv("DBUS_SESSION_BUS_ADDRESS");
+    printf(LOG_TAG "DBUS_SESSION_BUS_ADDRESS : %s\n", dbus_session_bus_address);
+
+    DBusConnection *connection = dbus_eg_server_initialize(dbus_session_bus_address);
 
 #if 0
     mainloop = g_main_loop_new(NULL, false);
