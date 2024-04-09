@@ -18,3 +18,8 @@ include_directories(${Qt5Widgets_INCLUDE_DIRS})
 link_libraries(${Qt5Widgets_LIBRARIES})
 
 add_subdirectory(dialog1)
+add_subdirectory(01_hello_world)
+add_subdirectory(02_gui_programming)
+add_subdirectory(03_signal_and_slots)
+add_subdirectory(04_displaying_windows)
+add_subdirectory(05_layout_tabs_buddies)
