@@ -1,0 +1,11 @@
+android_app {
+    name: "HelloWorld",
+    srcs: [
+        "java/**/*.java",
+    ],
+    platform_apis: true,
+    certificate: "platform",
+    optimize: {
+        enabled: false,
+    },
+}
